@@ -1,0 +1,33 @@
+[build-system]
+requires = ["setuptools>=64"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "richcal"
+dynamic = ["version"]
+description = "Rich terminal calendar heatmap widgets"
+readme = "README.md"
+requires-python = ">=3.10"
+license = {text = "Apache-2.0"}
+authors = [{name = "Hiroshi Doyu", email = "hiroshi.doyu@ninjalabo.ai"}]
+keywords = ['nbdev']
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3 :: Only",
+]
+dependencies = []
+
+[project.urls]
+Repository = "https://github.com/doyu/richcal"
+Documentation = "https://doyu.github.io/richcal/"
+
+[project.entry-points.nbdev]
+richcal = "richcal._modidx:d"
+
+[tool.setuptools.dynamic]
+version = {attr = "richcal.__version__"}
+
+[tool.setuptools.packages.find]
+include = ["richcal"]
+
+[tool.nbdev]

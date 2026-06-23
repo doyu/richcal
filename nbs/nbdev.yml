@@ -1,0 +1,9 @@
+project:
+  output-dir: _docs
+
+website:
+  title: "richcal"
+  site-url: "https://doyu.github.io/richcal"
+  description: "Rich terminal calendar heatmap widgets"
+  repo-branch: main
+  repo-url: "https://github.com/doyu/richcal"
