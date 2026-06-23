@@ -178,6 +178,14 @@ cumulative) to reuse them next to `heatmap.py`.
 
 - Add `rich` to `pyproject.toml` `[project].dependencies` (currently `[]`).
   Rich is a hard dependency because the public API is a Rich renderable.
+- No `pydantic`. Inputs are Python objects from the caller's own code (not an
+  untrusted parse boundary), so validation is plain constructor checks raising
+  `ValueError`, using stdlib only (`bisect`, `statistics`, `datetime`). pydantic
+  would add a heavy compiled dependency, contaminate the stdlib-only
+  `levels`/`layout` core, and its coercion would conflict with the strict
+  `date`-keys-only rule. Revisit pydantic only if a future CLI / config-file /
+  JSON-data layer is added — that is an untrusted boundary outside the core
+  renderable.
 
 ## Testing (nbdev, stub-first TDD)
 
