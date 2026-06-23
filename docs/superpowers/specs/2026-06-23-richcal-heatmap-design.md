@@ -66,6 +66,13 @@ and `richcal.layout` are internal and not part of the stable surface.
 - Strictly `Mapping[date, float]`, pre-aggregated to one value per day.
 - No string keys, no raw event lists, no pandas. Aggregation is the caller's job.
   This keeps the core dependency-light (`levels`/`layout` need no third party).
+- Keys must be `datetime.date` objects. `datetime.datetime` is a subclass of
+  `date` in Python, so it satisfies the type hint, **but** a `datetime` does not
+  compare equal to or hash identically with the matching `date`
+  (`date(2024,1,1) == datetime(2024,1,1)` is `False`). The renderable generates
+  `date` objects while iterating the window, so `datetime` keys silently fail to
+  match and read as missing. Normalize to `date` before passing data in.
+- Keys outside `[start, end]` are ignored (neither validated nor drawn).
 
 ## Value → level mapping
 
@@ -103,10 +110,17 @@ drawn cell is exactly one of three kinds:
   complete the Sunday-first week columns (see Layout). Rendered as **blank**
   (spacing only). Not level 0, not future.
 - **future** — in-window, with `as_of is not None and day > as_of`. Holds no
-  value; rendered as a dim placeholder glyph (e.g. `·`) so "the rest of the
-  year" is visible. With `as_of is None` there is no future region.
+  value (any `data` entry for a future day is ignored); rendered as a dim
+  placeholder glyph (e.g. `·`) so "the rest of the year" is visible. With
+  `as_of is None` there is no future region.
 - **observed** — in-window and not future. Rendered by its level (`0..level_max`);
   level 0 is a faint empty square.
+
+`as_of` slides the boundary continuously and all positions are valid:
+`as_of is None` or `as_of >= end` → no future region (whole window observed);
+`start <= as_of < end` → split; **`as_of < start` → the whole window is future**
+(every cell a dim placeholder — a legitimate "fully-planned-ahead, no data yet"
+view, not an error).
 
 ## Layout (auto-switch, GitHub style)
 
@@ -154,7 +168,10 @@ cumulative) to reuse them next to `heatmap.py`.
 - `level_max < 1` → `ValueError`.
 - `thresholds` (manual) not non-decreasing, or length `!= level_max - 1` →
   `ValueError`.
-- Any `value < 0` or non-finite (`NaN`/`inf`) in `data` → `ValueError`.
+- A `value < 0` or non-finite (`NaN`/`inf`) → `ValueError`, but **only for
+  observed in-window days** (`start <= day <= end` and not future). Values on
+  future days and on out-of-window keys are never consumed and so are not
+  validated — consistent with the auto-threshold carve-out.
 - Empty `data` (or all zeros) → render the window's empty frame; do **not** raise.
 
 ## Dependencies
@@ -174,6 +191,8 @@ cumulative) to reuse them next to `heatmap.py`.
 - Renderable: render into `Console(record=True)` and assert the **structure
   contract** — presence of weekday rows, week columns, month labels, weekday
   labels, legend; in-window cell count equals the active-range inclusive day
-  count; padding cells are blank; a future region appears when `as_of` is set.
-  Test top-level `from richcal import CalendarHeatmap`. Do not
+  count; padding cells are blank; a future region appears when `as_of` is set;
+  `as_of < start` renders the whole window as future; a negative/non-finite value
+  on a future day does **not** raise. Test top-level
+  `from richcal import CalendarHeatmap`. Do not
   assert pixel/character-width parity.
