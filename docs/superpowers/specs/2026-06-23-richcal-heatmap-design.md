@@ -57,6 +57,10 @@ CalendarHeatmap(
   `console.print(CalendarHeatmap(...))` draws it.
 - Keys are `datetime.date`. Missing days inside the window mean "no activity".
 
+Public import surface: `from richcal import CalendarHeatmap` (re-exported from the
+package `__init__`). `CalendarHeatmap` is the only public name; `richcal.levels`
+and `richcal.layout` are internal and not part of the stable surface.
+
 ## Input format
 
 - Strictly `Mapping[date, float]`, pre-aggregated to one value per day.
@@ -66,39 +70,62 @@ CalendarHeatmap(
 ## Value → level mapping
 
 Levels are integers `0 .. level_max`. Level 0 is "empty". Higher = more activity.
+`level_max` positive levels (`1..level_max`) are separated by `level_max - 1`
+boundaries (n groups need n−1 cut points).
+
+`thresholds` is a **non-decreasing** sequence of length `level_max - 1` (ties
+allowed; a tie just leaves a level empty). The level of any value:
+
+- `value < 0` or non-finite (`NaN`/`inf`) → invalid, see Error handling.
+- `value == 0` → level 0 (empty).
+- `value > 0` → `level(v) = 1 + bisect_right(thresholds, v)`, naturally capped
+  at `level_max` because there are `level_max - 1` boundaries.
 
 Auto thresholds (when `thresholds is None`):
-- Compute from **positive observed values only**: `value > 0` and `day <= as_of`
-  (when `as_of is None`, all in-window days count as observed).
-- `thresholds[k] = quantile(positives, (k+1)/level_max)` for `k in 0..level_max-1`
-  (sorted ascending, length `level_max`).
-- `level(v) = 0` when `v == 0`; otherwise `1 + (number of thresholds strictly
-  less than v)`, capped at `level_max`.
-- Future days and missing days are **excluded** from threshold computation.
-- If there are no positive observed values, every cell is level 0 (no error).
+- Computed from **positive observed values only**: `value > 0` and, when
+  `as_of is not None`, `day <= as_of` (future days excluded; missing days
+  contribute nothing). When `as_of is None`, all in-window days are observed.
+- `thresholds = statistics.quantiles(positives, n=level_max, method="inclusive")`,
+  which yields exactly `level_max - 1` ascending cut points.
+- Degenerate cases (deterministic, no error): `level_max == 1` → `thresholds = []`
+  (every positive value is level 1); fewer than 2 positive observed values →
+  `thresholds = []` likewise.
 
-Manual override: `thresholds` is an ascending sequence of length `level_max`
-giving the lower bounds for levels `1..level_max`; same `level(v)` rule applies.
+Manual override: pass a non-decreasing `thresholds` of length `level_max - 1`;
+the same `level(v)` rule applies. (`level_max == 1` → pass `[]`.)
 
-## Future / window semantics
+## Cell kinds & window semantics
 
-- The drawn window is exactly `[start, end]` (both required, inclusive).
-- A day `d` with `as_of is not None and d > as_of` is a **future cell**: it holds
-  no value and renders as a dim placeholder glyph (e.g. `·`), distinct from a
-  past empty (level-0) cell. This makes "the rest of the year" visible.
-- With `as_of is None`, there is no future region; all in-window days render by level.
+The active window is exactly `[start, end]` (both required, inclusive). Every
+drawn cell is exactly one of three kinds:
+
+- **padding** — a grid position **outside** `[start, end]` that exists only to
+  complete the Sunday-first week columns (see Layout). Rendered as **blank**
+  (spacing only). Not level 0, not future.
+- **future** — in-window, with `as_of is not None and day > as_of`. Holds no
+  value; rendered as a dim placeholder glyph (e.g. `·`) so "the rest of the
+  year" is visible. With `as_of is None` there is no future region.
+- **observed** — in-window and not future. Rendered by its level (`0..level_max`);
+  level 0 is a faint empty square.
 
 ## Layout (auto-switch, GitHub style)
 
 - Weeks run as columns, weekdays as rows; **week starts on Sunday** (top row `Su`),
   matching the reference `/usage` view.
-- Range `<= ~1 year`: a single continuous strip — 7 rows × N week columns.
-- Range `> 1 year`: stacked per calendar year — each year is its own 7×53 block
-  with a year label on the left.
+- Auto-switch (testable, calendar-year based):
+  - `start.year == end.year` → a single continuous strip.
+  - otherwise → one block **per calendar year** from `start.year` to `end.year`,
+    stacked vertically with a year label on the left. Each block's active range
+    is that year clipped to `[start, end]`.
+- Week-column origin / padding: each block's columns span from the Sunday on or
+  before its first active day to the Saturday on or after its last active day, so
+  every column is a full 7-cell week. Positions before the first active day and
+  after the last are **padding** (blank). Thus the grid is rectangular and the
+  in-window cell count equals the inclusive day count of the block's active range.
 - Chrome (toggleable): month labels on top, weekday labels on the left,
   `Less → More` legend below.
 - Cell glyph: `■` (plus spacing) colored by level; level 0 is a faint empty;
-  future is the dim placeholder.
+  future is the dim placeholder; padding is blank.
 
 ## Architecture (three focused modules)
 
@@ -116,7 +143,7 @@ cumulative) to reuse them next to `heatmap.py`.
 
 1. Resolve the window from required `start` / `end`.
 2. Resolve thresholds — auto from positive observed values, or use the override.
-3. Pick layout — continuous strip vs per-year stacks by range length.
+3. Pick layout — single strip when `start.year == end.year`, else per-year stacks.
 4. For each day in the window, compute `(block, row, col)` and either its level
    (observed) or future-placeholder (`day > as_of`); emit a Rich grid with
    month labels, weekday labels, and the legend per the `show_*` flags.
@@ -124,8 +151,10 @@ cumulative) to reuse them next to `heatmap.py`.
 ## Error handling
 
 - `start > end` → `ValueError`.
-- `thresholds` not strictly ascending, or length `!= level_max` → `ValueError`.
 - `level_max < 1` → `ValueError`.
+- `thresholds` (manual) not non-decreasing, or length `!= level_max - 1` →
+  `ValueError`.
+- Any `value < 0` or non-finite (`NaN`/`inf`) in `data` → `ValueError`.
 - Empty `data` (or all zeros) → render the window's empty frame; do **not** raise.
 
 ## Dependencies
@@ -137,10 +166,14 @@ cumulative) to reuse them next to `heatmap.py`.
 
 - Implement from `nbs/` with stub-first TDD; treat `richcal/*.py` as generated
   output (do not hand-edit the modules).
-- Pure functions (`levels`, `layout`): assertion cells for quantile thresholds,
-  `to_level` boundaries (including `v == 0` and all-zero), weekday-row / week-col
-  mapping, and year splitting.
+- Pure functions (`levels`, `layout`): assertion cells for quantile thresholds
+  (length `level_max - 1`, ties), `to_level` boundaries (including `v == 0`,
+  all-zero, degenerate `level_max == 1`, the `bisect_right` boundary, and
+  `ValueError` on negative / non-finite), weekday-row / week-col mapping, leading/
+  trailing padding, and year splitting.
 - Renderable: render into `Console(record=True)` and assert the **structure
   contract** — presence of weekday rows, week columns, month labels, weekday
-  labels, legend; cell counts; a future region when `as_of` is set. Do not
+  labels, legend; in-window cell count equals the active-range inclusive day
+  count; padding cells are blank; a future region appears when `as_of` is set.
+  Test top-level `from richcal import CalendarHeatmap`. Do not
   assert pixel/character-width parity.
