@@ -10,7 +10,6 @@ __all__ = ['default_palette', 'CalendarHeatmap']
 # %% ../nbs/02_heatmap.ipynb #e1f2a3b4
 import math
 from datetime import date, timedelta
-from collections.abc import Mapping, Sequence
 from rich.text import Text
 from .levels import quantile_thresholds, to_level
 from .layout import grid_bounds, year_blocks, month_label_cols
@@ -47,6 +46,8 @@ class CalendarHeatmap:
         self.show_months, self.show_weekdays, self.show_legend = show_months, show_weekdays, show_legend
         self.thresholds = thresholds if thresholds is not None else quantile_thresholds(observed, level_max)
         self.palette = list(palette) if palette is not None else default_palette(level_max)
+        if len(self.palette) != level_max + 1:
+            raise ValueError(f"palette length must be {level_max + 1}")
         self.blocks = year_blocks(start, end)
 
     @staticmethod
