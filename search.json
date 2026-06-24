@@ -1,0 +1,72 @@
+[
+  {
+    "objectID": "heatmap.html",
+    "href": "heatmap.html",
+    "title": "heatmap",
+    "section": "",
+    "text": "source\n\nCalendarHeatmap\n\ndef CalendarHeatmap(\n    data, start, end, level_max:int=4, thresholds:NoneType=None, palette:NoneType=None, as_of:NoneType=None,\n    show_months:bool=True, show_weekdays:bool=True, show_legend:bool=True\n):\n\nRich renderable: GitHub-style annual activity heatmap from {date: value}.\n\nsource\n\n\ndefault_palette\n\ndef default_palette(\n    level_max\n):\n\nBuilt-in GitHub-green palette of length level_max+1 (level 0 = empty).\n\nfrom fastcore.test import test_eq, test_fail\n\n# default palette length = level_max + 1\ntest_eq(len(default_palette(4)), 5)\ntest_eq(len(default_palette(3)), 4)\ntest_fail(lambda: default_palette(9), contains=\"palette\")\n\n# valid construction resolves thresholds and per-year blocks\nhm = CalendarHeatmap({date(2026, 1, 1): 3, date(2026, 1, 2): 9},\n                     date(2026, 1, 1), date(2026, 12, 31))\ntest_eq(len(hm.thresholds), 3)            # level_max-1\ntest_eq(len(hm.palette), 5)\ntest_eq([y for y, _, _ in hm.blocks], [2026])\n\n# validation\ntest_fail(lambda: CalendarHeatmap({}, date(2026, 2, 1), date(2026, 1, 1)), contains=\"start\")\ntest_fail(lambda: CalendarHeatmap({}, date(2026, 1, 1), date(2026, 12, 31), level_max=0), contains=\"level_max\")\ntest_fail(lambda: CalendarHeatmap({}, date(2026, 1, 1), date(2026, 12, 31), thresholds=[1, 2]), contains=\"length\")\ntest_fail(lambda: CalendarHeatmap({}, date(2026, 1, 1), date(2026, 12, 31), thresholds=[3, 2, 1]), contains=\"non-decreasing\")\ntest_fail(lambda: CalendarHeatmap({date(2026, 1, 2): -1}, date(2026, 1, 1), date(2026, 12, 31)), contains=\"finite\")\ntest_fail(lambda: CalendarHeatmap({}, date(2026, 1, 1), date(2026, 12, 31), palette=[\"a\", \"b\"]), contains=\"palette\")\n\n# data must be a Mapping with datetime.date keys; thresholds must be finite\ntest_fail(lambda: CalendarHeatmap([(date(2026, 1, 1), 5)], date(2026, 1, 1), date(2026, 12, 31)), contains=\"Mapping\")\ntest_fail(lambda: CalendarHeatmap({\"2026-01-01\": 5}, date(2026, 1, 1), date(2026, 12, 31)), contains=\"date\")\ntest_fail(lambda: CalendarHeatmap({datetime(2026, 1, 1): 5}, date(2026, 1, 1), date(2026, 12, 31)), contains=\"date\")\ntest_fail(lambda: CalendarHeatmap({date(2026, 1, 1): 5}, date(2026, 1, 1), date(2026, 12, 31), thresholds=[float(\"nan\"), 2, 3]), contains=\"finite\")\n\n# a bad value on a FUTURE day must NOT raise (validation is observed-only)\nCalendarHeatmap({date(2026, 12, 30): -1}, date(2026, 1, 1), date(2026, 12, 31), as_of=date(2026, 6, 23))\n\n&lt;__main__.CalendarHeatmap at 0x7fbf9abaa840&gt;\n\n\n\nsource\n\n\nrich_console\n\ndef __rich_console__(\n    console, options\n):\n\nCall self as a function.\n\nfrom fastcore.test import test_eq\nfrom rich.console import Console\n\ndef _render(hm, width=240):\n    c = Console(record=True, width=width, force_terminal=False)\n    c.print(hm)\n    return c.export_text()\n\ndata = {date(2026, 1, 1) + timedelta(days=i): (i % 5) for i in range(120)}\nout = _render(CalendarHeatmap(data, date(2026, 1, 1), date(2026, 4, 30)))\nassert \"Su\" in out and \"Sa\" in out          # weekday labels\nassert \"Jan\" in out and \"Feb\" in out        # month labels\nassert \"Less\" in out and \"More\" in out      # legend\nassert \"■\" in out                           # filled cells\n\n# multi-year stacks show year labels\nout_my = _render(CalendarHeatmap(data, date(2025, 12, 1), date(2026, 4, 30)))\nassert \"2025\" in out_my and \"2026\" in out_my\n\n# future region uses the placeholder glyph\nout_fut = _render(CalendarHeatmap({}, date(2026, 1, 1), date(2026, 12, 31), as_of=date(2026, 6, 23)))\nassert \"·\" in out_fut\n\n# as_of &lt; start =&gt; the whole grid is future: no filled square before the legend\nout_all = _render(CalendarHeatmap({}, date(2026, 6, 1), date(2026, 6, 30), as_of=date(2026, 1, 1)))\ngrid_part = out_all.split(\"Less\")[0]\nassert \"·\" in grid_part and \"■\" not in grid_part\n\n# toggles drop their chrome\nout_bare = _render(CalendarHeatmap(data, date(2026, 1, 1), date(2026, 4, 30),\n                                   show_months=False, show_weekdays=False, show_legend=False))\nassert \"Jan\" not in out_bare and \"Less\" not in out_bare and \"Su\" not in out_bare\n\n# in-window cell count == inclusive day count; padding is blank, no future cells\nout_cc = _render(CalendarHeatmap({}, date(2026, 3, 2), date(2026, 3, 15)))\ngrid_cc = out_cc.split(\"Less\")[0]\nassert grid_cc.count(\"■\") == 14      # 2026-03-02..2026-03-15 inclusive, all level-0 observed\nassert \"·\" not in grid_cc            # as_of is None -&gt; no future cells\n\n   Jan       Feb     Mar     Apr       \nSu   ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ \nMo   ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ \nTu   ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ \nWe   ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ \nTh ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ \nFr ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■   \nSa ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■   \n\nLess ■ ■ ■ ■ ■ More\n2025\n   Dec       \nSu   ■ ■ ■ ■ \nMo ■ ■ ■ ■ ■ \nTu ■ ■ ■ ■ ■ \nWe ■ ■ ■ ■ ■ \nTh ■ ■ ■ ■   \nFr ■ ■ ■ ■   \nSa ■ ■ ■ ■   \n\n2026\n   Jan       Feb     Mar     Apr       \nSu   ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ \nMo   ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ \nTu   ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ \nWe   ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ \nTh ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ \nFr ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■   \nSa ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■   \n\nLess ■ ■ ■ ■ ■ More\n   Jan       Feb     Mar     Apr     May       Jun     Jul     Aug       Sep     Oct       Nov     Dec       \nSu   ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ · · · · · · · · · · · · · · · · · · · · · · · · · · · \nMo   ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ · · · · · · · · · · · · · · · · · · · · · · · · · · · \nTu   ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ · · · · · · · · · · · · · · · · · · · · · · · · · · · \nWe   ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ · · · · · · · · · · · · · · · · · · · · · · · · · · · · \nTh ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ · · · · · · · · · · · · · · · · · · · · · · · · · · · · \nFr ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ · · · · · · · · · · · · · · · · · · · · · · · · · · ·   \nSa ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ · · · · · · · · · · · · · · · · · · · · · · · · · · ·   \n\nLess ■ ■ ■ ■ ■ More\n   Jun       \nSu   · · · · \nMo · · · · · \nTu · · · · · \nWe · · · ·   \nTh · · · ·   \nFr · · · ·   \nSa · · · ·   \n\nLess ■ ■ ■ ■ ■ More\n  ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ \n  ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ \n  ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ \n  ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ \n■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ \n■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■   \n■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■   \n\n   Mar   \nSu   ■ ■ \nMo ■ ■   \nTu ■ ■   \nWe ■ ■   \nTh ■ ■   \nFr ■ ■   \nSa ■ ■   \n\nLess ■ ■ ■ ■ ■ More\n\n\n\nfrom rich.console import Console\ndata = {date(2026, 1, 1) + timedelta(days=i): (i * 7) % 23 for i in range(170)}\nConsole().print(CalendarHeatmap(data, date(2026, 1, 1), date(2026, 12, 31), as_of=date(2026, 6, 23)))",
+    "crumbs": [
+      "heatmap"
+    ]
+  },
+  {
+    "objectID": "levels.html",
+    "href": "levels.html",
+    "title": "levels",
+    "section": "",
+    "text": "source\n\nquantile_thresholds\n\ndef quantile_thresholds(\n    values, level_max\n):\n\nAscending cut points (len level_max-1) splitting positive values into level_max groups.\n\nsource\n\n\nto_level\n\ndef to_level(\n    value, thresholds\n):\n\nInteger activity level 0..len(thresholds)+1; 0 when value&lt;=0.\n\nfrom fastcore.test import test_eq\n\n# to_level: 0/negative -&gt; level 0; positives bucket by bisect_right\ntest_eq(to_level(0, [1, 5, 10]), 0)\ntest_eq(to_level(-3, [1, 5, 10]), 0)\ntest_eq(to_level(0.5, [1, 5, 10]), 1)\ntest_eq(to_level(1, [1, 5, 10]), 2)\ntest_eq(to_level(7, [1, 5, 10]), 3)\ntest_eq(to_level(999, [1, 5, 10]), 4)\n\n# quantile_thresholds: length is level_max - 1, positives only, ties allowed\ntest_eq(len(quantile_thresholds([1, 2, 3, 4, 5, 6, 7, 8], 4)), 3)\ntest_eq(quantile_thresholds([5], 4), [])              # &lt;2 positive -&gt; []\ntest_eq(quantile_thresholds([1, 2, 3], 1), [])        # level_max==1 -&gt; []\ntest_eq(quantile_thresholds([0, 0, 5, 5], 4), [5.0, 5.0, 5.0])  # non-positive ignored; ties ok",
+    "crumbs": [
+      "levels"
+    ]
+  },
+  {
+    "objectID": "layout.html",
+    "href": "layout.html",
+    "title": "layout",
+    "section": "",
+    "text": "source\n\ngrid_bounds\n\ndef grid_bounds(\n    block_start, block_end\n):\n\nReturn (grid_start, n_cols) of full Sunday-first weeks covering [block_start, block_end].\n\nsource\n\n\nweek_col\n\ndef week_col(\n    d, grid_start\n):\n\nColumn index of d measured in weeks from grid_start (a Sunday).\n\nsource\n\n\nsaturday_on_or_after\n\ndef saturday_on_or_after(\n    d\n):\n\nThe Saturday on or after d.\n\nsource\n\n\nsunday_on_or_before\n\ndef sunday_on_or_before(\n    d\n):\n\nThe Sunday on or before d.\n\nsource\n\n\nweekday_row\n\ndef weekday_row(\n    d\n):\n\nRow index with Sunday=0 .. Saturday=6.\n\nfrom fastcore.test import test_eq\n\n# 2024-01-07 is a Sunday, 2024-01-06 a Saturday, 2023-12-31 a Sunday\ntest_eq(weekday_row(date(2024, 1, 7)), 0)\ntest_eq(weekday_row(date(2024, 1, 6)), 6)\ntest_eq(sunday_on_or_before(date(2024, 1, 1)), date(2023, 12, 31))\ntest_eq(sunday_on_or_before(date(2024, 1, 7)), date(2024, 1, 7))\ntest_eq(saturday_on_or_after(date(2024, 1, 1)), date(2024, 1, 6))\ntest_eq(saturday_on_or_after(date(2024, 1, 6)), date(2024, 1, 6))\ntest_eq(week_col(date(2024, 1, 7), date(2023, 12, 31)), 1)\ntest_eq(grid_bounds(date(2024, 1, 1), date(2024, 1, 13)), (date(2023, 12, 31), 2))\n\n\nsource\n\n\nmonth_label_cols\n\ndef month_label_cols(\n    block_start, block_end, grid_start\n):\n\nList of (week_col, ‘Mon’) for the first day of each month in [block_start, block_end].\n\nsource\n\n\nyear_blocks\n\ndef year_blocks(\n    start, end\n):\n\nSplit [start, end] into (year, block_start, block_end); one block per calendar year.\n\nfrom fastcore.test import test_eq, test_fail\n\n# single calendar year -&gt; one block\ntest_eq(year_blocks(date(2026, 1, 1), date(2026, 6, 23)),\n        [(2026, date(2026, 1, 1), date(2026, 6, 23))])\n\n# multi-year -&gt; one block per year, clipped\nb = year_blocks(date(2024, 11, 1), date(2026, 2, 1))\ntest_eq([y for y, _, _ in b], [2024, 2025, 2026])\ntest_eq(b[0], (2024, date(2024, 11, 1), date(2024, 12, 31)))\ntest_eq(b[1], (2025, date(2025, 1, 1), date(2025, 12, 31)))\ntest_eq(b[2], (2026, date(2026, 1, 1), date(2026, 2, 1)))\n\ntest_fail(lambda: year_blocks(date(2026, 2, 1), date(2026, 1, 1)), contains=\"start\")\n\n# month labels in order\ngs = sunday_on_or_before(date(2024, 1, 1))\ntest_eq([l for _, l in month_label_cols(date(2024, 1, 1), date(2024, 3, 31), gs)],\n        [\"Jan\", \"Feb\", \"Mar\"])",
+    "crumbs": [
+      "layout"
+    ]
+  },
+  {
+    "objectID": "index.html",
+    "href": "index.html",
+    "title": "richcal",
+    "section": "",
+    "text": "This file will become your README and also the index of your documentation.",
+    "crumbs": [
+      "richcal"
+    ]
+  },
+  {
+    "objectID": "index.html#developer-guide",
+    "href": "index.html#developer-guide",
+    "title": "richcal",
+    "section": "Developer Guide",
+    "text": "Developer Guide\nIf you are new to using nbdev here are some useful pointers to get you started.\n\nInstall richcal in Development mode\n# make sure richcal package is installed in development mode\n$ pip install -e .\n\n# make changes under nbs/ directory\n# ...\n\n# compile to have changes apply to richcal\n$ nbdev_prepare",
+    "crumbs": [
+      "richcal"
+    ]
+  },
+  {
+    "objectID": "index.html#usage",
+    "href": "index.html#usage",
+    "title": "richcal",
+    "section": "Usage",
+    "text": "Usage\n\nInstallation\nInstall latest from the GitHub repository:\n$ pip install git+https://github.com/doyu/richcal.git\nor from conda\n$ conda install -c doyu richcal\nor from pypi\n$ pip install richcal\n\n\nDocumentation\nDocumentation can be found hosted on this GitHub repository’s pages. Additionally you can find package manager specific guidelines on conda and pypi respectively.",
+    "crumbs": [
+      "richcal"
+    ]
+  },
+  {
+    "objectID": "index.html#how-to-use",
+    "href": "index.html#how-to-use",
+    "title": "richcal",
+    "section": "How to use",
+    "text": "How to use\n\nfrom datetime import date, timedelta\nfrom rich.console import Console\nfrom richcal import CalendarHeatmap\n\ndata = {date(2026, 1, 1) + timedelta(days=i): (i * 7) % 23 for i in range(170)}\nConsole().print(CalendarHeatmap(data, date(2026, 1, 1), date(2026, 12, 31), as_of=date(2026, 6, 23)))",
+    "crumbs": [
+      "richcal"
+    ]
+  }
+]
