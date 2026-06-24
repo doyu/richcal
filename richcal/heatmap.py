@@ -58,3 +58,57 @@ class CalendarHeatmap:
                 out.append(data[d])
             d += timedelta(days=1)
         return out
+
+# %% ../nbs/02_heatmap.ipynb #06ef8dc0
+_WEEKDAYS = ["Su", "Mo", "Tu", "We", "Th", "Fr", "Sa"]
+
+def _month_header(self, block_start, block_end, grid_start, n_cols, left_pad):
+    row = [" "] * (n_cols * 2)
+    for col, label in month_label_cols(block_start, block_end, grid_start):
+        for i, ch in enumerate(label):
+            if 0 <= col * 2 + i < len(row):
+                row[col * 2 + i] = ch
+    return Text(" " * left_pad + "".join(row))
+
+def _render_block(self, year, block_start, block_end, multi):
+    grid_start, n_cols = grid_bounds(block_start, block_end)
+    left_pad = 3 if self.show_weekdays else 0
+    lines = []
+    if multi:
+        lines.append(Text(str(year), style="bold"))
+    if self.show_months:
+        lines.append(self._month_header(block_start, block_end, grid_start, n_cols, left_pad))
+    for r in range(7):
+        line = Text()
+        if self.show_weekdays:
+            line.append(_WEEKDAYS[r] + " ")
+        for col in range(n_cols):
+            d = grid_start + timedelta(days=col * 7 + r)
+            if d < block_start or d > block_end:
+                line.append("  ")
+            elif self.as_of is not None and d > self.as_of:
+                line.append("· ", style="grey37")
+            else:
+                line.append("■ ", style=self.palette[to_level(self.data.get(d, 0), self.thresholds)])
+        lines.append(line)
+    return lines
+
+def _legend(self):
+    leg = Text("Less ")
+    for lvl in range(self.level_max + 1):
+        leg.append("■ ", style=self.palette[lvl])
+    leg.append("More")
+    return leg
+
+def __rich_console__(self, console, options):
+    multi = len(self.blocks) > 1
+    for year, bs, be in self.blocks:
+        yield from self._render_block(year, bs, be, multi)
+        yield Text("")
+    if self.show_legend:
+        yield self._legend()
+
+CalendarHeatmap._month_header = _month_header
+CalendarHeatmap._render_block = _render_block
+CalendarHeatmap._legend = _legend
+CalendarHeatmap.__rich_console__ = __rich_console__
