@@ -58,10 +58,11 @@ package manager specific guidelines on
 
 ## How to use
 
-Fill me in please! Don’t forget code examples:
-
 ``` python
-1+1
-```
+from datetime import date, timedelta
+from rich.console import Console
+from richcal import CalendarHeatmap
 
-    2
+data = {date(2026, 1, 1) + timedelta(days=i): (i * 7) % 23 for i in range(170)}
+Console().print(CalendarHeatmap(data, date(2026, 1, 1), date(2026, 12, 31), as_of=date(2026, 6, 23)))
+```
