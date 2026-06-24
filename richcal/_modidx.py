@@ -5,4 +5,7 @@ d = { 'settings': { 'branch': 'main',
                 'doc_host': 'https://doyu.github.io',
                 'git_url': 'https://github.com/doyu/richcal',
                 'lib_path': 'richcal'},
-  'syms': {'richcal.heatmap': {}, 'richcal.layout': {}, 'richcal.levels': {}}}
+  'syms': { 'richcal.heatmap': {},
+            'richcal.layout': {},
+            'richcal.levels': { 'richcal.levels.quantile_thresholds': ('levels.html#quantile_thresholds', 'richcal/levels.py'),
+                                'richcal.levels.to_level': ('levels.html#to_level', 'richcal/levels.py')}}}
