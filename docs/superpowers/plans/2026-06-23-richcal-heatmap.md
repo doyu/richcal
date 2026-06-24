@@ -129,9 +129,14 @@ import nbdev; nbdev.nbdev_export()
 
 Run:
 ```bash
-source .venv/bin/activate && nbdev-export && python -c "import richcal; from richcal import levels, layout, heatmap; print('ok')"
+source .venv/bin/activate && nbdev-export && python -c "import richcal; from richcal import levels, layout; print('ok')"
 ```
 Expected: prints `ok` (no `core` module errors).
+
+Note: do **not** import `richcal.heatmap` here. Its header cell imports
+`grid_bounds`/`year_blocks`/`month_label_cols`/`to_level`/`quantile_thresholds`,
+which do not exist until Tasks 2–4 add them. `heatmap` becomes importable from
+Task 5 onward; Tasks 2–4 only ever run `nbdev-test` on their own notebook.
 
 - [ ] **Step 7: Commit**
 
