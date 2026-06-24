@@ -69,10 +69,12 @@ and `richcal.layout` are internal and not part of the stable surface.
 - Keys must be `datetime.date` objects. `datetime.datetime` is a subclass of
   `date` in Python, so it satisfies the type hint, **but** a `datetime` does not
   compare equal to or hash identically with the matching `date`
-  (`date(2024,1,1) == datetime(2024,1,1)` is `False`). The renderable generates
-  `date` objects while iterating the window, so `datetime` keys silently fail to
-  match and read as missing. Normalize to `date` before passing data in.
-- Keys outside `[start, end]` are ignored (neither validated nor drawn).
+  (`date(2024,1,1) == datetime(2024,1,1)` is `False`) — it would read as missing.
+  Rather than fail silently, the constructor rejects non-`Mapping` `data` and any
+  key that is not a `datetime.date` (including `datetime`) with `ValueError`.
+  Normalize to `date` before passing data in.
+- Keys outside `[start, end]` are ignored for rendering, but key *type* is
+  validated for all entries.
 
 ## Value → level mapping
 
@@ -164,10 +166,13 @@ cumulative) to reuse them next to `heatmap.py`.
 
 ## Error handling
 
+- `data` not a `Mapping`, or any key not a `datetime.date` (including a
+  `datetime.datetime`) → `ValueError`.
 - `start > end` → `ValueError`.
 - `level_max < 1` → `ValueError`.
-- `thresholds` (manual) not non-decreasing, or length `!= level_max - 1` →
-  `ValueError`.
+- `thresholds` (manual) not non-decreasing, non-finite (`NaN`/`inf`), or length
+  `!= level_max - 1` → `ValueError`.
+- `palette` length `!= level_max + 1` → `ValueError`.
 - A `value < 0` or non-finite (`NaN`/`inf`) → `ValueError`, but **only for
   observed in-window days** (`start <= day <= end` and not future). Values on
   future days and on out-of-window keys are never consumed and so are not

@@ -9,7 +9,8 @@ __all__ = ['default_palette', 'CalendarHeatmap']
 
 # %% ../nbs/02_heatmap.ipynb #e1f2a3b4
 import math
-from datetime import date, timedelta
+from collections.abc import Mapping
+from datetime import date, datetime, timedelta
 from rich.text import Text
 from .levels import quantile_thresholds, to_level
 from .layout import grid_bounds, year_blocks, month_label_cols
@@ -29,12 +30,19 @@ class CalendarHeatmap:
     def __init__(self, data, start, end, level_max=4, thresholds=None,
                  palette=None, as_of=None, show_months=True,
                  show_weekdays=True, show_legend=True):
+        if not isinstance(data, Mapping):
+            raise ValueError("data must be a Mapping[date, float]")
+        for k in data:
+            if not isinstance(k, date) or isinstance(k, datetime):
+                raise ValueError(f"data keys must be datetime.date, not {type(k).__name__}")
         if start > end: raise ValueError("start must be <= end")
         if level_max < 1: raise ValueError("level_max must be >= 1")
         if thresholds is not None:
             thresholds = list(thresholds)
             if len(thresholds) != level_max - 1:
                 raise ValueError(f"thresholds length must be {level_max - 1}")
+            if any(not math.isfinite(t) for t in thresholds):
+                raise ValueError("thresholds must be finite")
             if any(thresholds[i] > thresholds[i + 1] for i in range(len(thresholds) - 1)):
                 raise ValueError("thresholds must be non-decreasing")
         observed = self._observed_values(data, start, end, as_of)
